@@ -1,0 +1,15 @@
+# Local MongoDB for development — matches default MONGO_URI in .env
+# Usage: docker compose up -d
+# Then: npm run dev
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - portfolio_mongo_data:/data/db
+
+volumes:
+  portfolio_mongo_data:
