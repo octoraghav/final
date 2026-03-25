@@ -5,6 +5,7 @@
 
 require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") });
 
+const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const cors = require("cors");
@@ -31,16 +32,37 @@ app.use(express.json());
 // API: visitor reviews
 app.use("/api/reviews", reviewRoutes);
 
-// Serve frontend (HTML/CSS/JS) from ../client (index.html at /)
-app.use(express.static(path.join(__dirname, "..", "client")));
+const clientDir = path.join(__dirname, "..", "client");
+const indexPath = path.join(clientDir, "index.html");
 
-const PORT = process.env.PORT || 5000;
+// Render (and similar) health checks — use this path in the dashboard if needed
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
+// Root before static so `/` reliably serves the SPA shell on all hosts
+app.get("/", (_req, res) => {
+  res.sendFile(indexPath);
+});
+
+// CSS/JS and other files under client/
+app.use(express.static(clientDir));
+
+const PORT = Number(process.env.PORT) || 5000;
 const MONGO_URI = process.env.MONGO_URI;
 const skipMongo = isSkipMongo();
 
 function startListening() {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  if (!fs.existsSync(indexPath)) {
+    console.error(`Missing frontend: ${indexPath}`);
+    console.error("Commit the client/ folder (including index.html) to your repo.");
+    process.exit(1);
+  }
+
+  // Render requires binding to all interfaces — see https://render.com/docs/web-services#port-binding
+  const host = process.env.HOST || "0.0.0.0";
+  app.listen(PORT, host, () => {
+    console.log(`Server running on http://${host}:${PORT}`);
   });
 }
 
