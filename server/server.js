@@ -56,7 +56,11 @@ if (skipMongo) {
   mongoose
     .connect(MONGO_URI)
     .then(() => {
+      const dbName = mongoose.connection.db?.databaseName;
       console.log("MongoDB connected");
+      console.log(
+        `  → database: "${dbName}" — collection: "reviews" (use the same connection string in Compass/Atlas Data Explorer)`
+      );
       startListening();
     })
     .catch((err) => {
