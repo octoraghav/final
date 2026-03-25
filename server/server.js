@@ -17,7 +17,11 @@ function isSkipMongo() {
   return v === "1" || v === "true" || v === "yes";
 }
 
-const reviewRoutes = isSkipMongo()
+const mongoUri = String(process.env.MONGO_URI || "").trim();
+/** No URI (typical on PaaS without env vars) → in-memory so the app still starts. */
+const useMemoryReviews = isSkipMongo() || !mongoUri;
+
+const reviewRoutes = useMemoryReviews
   ? require("./routes/reviewRoutesMemory")
   : require("./routes/reviewRoutes");
 
@@ -49,8 +53,6 @@ app.get("/", (_req, res) => {
 app.use(express.static(clientDir));
 
 const PORT = Number(process.env.PORT) || 5000;
-const MONGO_URI = process.env.MONGO_URI;
-const skipMongo = isSkipMongo();
 
 function startListening() {
   if (!fs.existsSync(indexPath)) {
@@ -66,17 +68,18 @@ function startListening() {
   });
 }
 
-if (skipMongo) {
-  console.log("SKIP_MONGO is on — reviews use in-memory storage (cleared when the server stops).");
+if (useMemoryReviews) {
+  if (isSkipMongo()) {
+    console.log("SKIP_MONGO is on — reviews use in-memory storage (cleared when the server stops).");
+  } else {
+    console.warn(
+      "MONGO_URI is not set — reviews use in-memory storage (lost on restart). Add MONGO_URI in your host’s environment (e.g. Render → Environment) for persistence."
+    );
+  }
   startListening();
 } else {
-  if (!MONGO_URI) {
-    console.error("MONGO_URI is missing from environment. Set it in .env, or set SKIP_MONGO=true");
-    process.exit(1);
-  }
-
   mongoose
-    .connect(MONGO_URI)
+    .connect(mongoUri)
     .then(() => {
       const dbName = mongoose.connection.db?.databaseName;
       console.log("MongoDB connected");
@@ -90,10 +93,10 @@ if (skipMongo) {
       console.error("");
       console.error("  Nothing is accepting connections at your MONGO_URI (often port 27017).");
       console.error("  Options:");
-      console.error("    • Frontend only: set SKIP_MONGO=true in .env");
+      console.error("    • Frontend only: unset MONGO_URI or set SKIP_MONGO=true");
       console.error("    • Docker:  docker compose up -d   (from this project folder)");
       console.error("    • Install MongoDB Community and start the mongod service / run mongod");
-      console.error("    • Cloud:   set MONGO_URI in .env to a MongoDB Atlas connection string");
+      console.error("    • Cloud:   set MONGO_URI to a MongoDB Atlas connection string");
       console.error("");
       process.exit(1);
     });
